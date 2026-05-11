@@ -270,7 +270,7 @@ export default function AIInsights() {
           {isGenerating ? (
             <div className="flex items-center gap-3">
               <Loader2 size={20} className="animate-spin" />
-              <span>NutriNest AI AI is analyzing your family's nutrition data…</span>
+              <span>NutriNest AI is analyzing your family's nutrition data…</span>
             </div>
           ) : topInsight ? (
             <>
