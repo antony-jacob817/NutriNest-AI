@@ -1,10 +1,13 @@
-import { Flame, Beef, Wheat, Droplets, Users, Loader2 } from 'lucide-react';
+import { Flame, Beef, Wheat, Droplets, Users, Loader2, ArrowRight } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import NutritionCard from '../../components/dashboard/NutritionCard';
 import { useAuth } from '../../context/AuthContext';
 import { useFamilyMembers } from '../../hooks/useFamilyMembers';
 import { useNutritionLogs } from '../../hooks/useNutritionLogs';
 import { useMealPlans } from '../../hooks/useMealPlans';
+import { supabase } from '../../services/supabaseClient';
 import { nutritionData, weeklyMealPlan, familyMembers as mockFamily, aiRecommendations } from '../../data/mockData';
 
 const colorMap: Record<string, string> = {
@@ -48,6 +51,27 @@ export default function Overview() {
   const wtr = isDemoMode ? '1.8' : (todayWaterMl > 0 ? (todayWaterMl / 1000).toFixed(1) : '0');
 
   const isLoading = familyLoading || nutritionLoading || mealsLoading;
+
+  // ── AI Recommendations from DB ───────────────────────────────────────────
+  const navigate = useNavigate();
+  const [savedRecs, setSavedRecs] = useState<any[]>([]);
+  const [recsLoading, setRecsLoading] = useState(false);
+
+  useEffect(() => {
+    if (isDemoMode) return;
+    if (!familyId) return;
+    setRecsLoading(true);
+    supabase
+      .from('ai_recommendations')
+      .select('*')
+      .eq('family_id', familyId)
+      .order('created_at', { ascending: false })
+      .limit(3)
+      .then(({ data }) => {
+        setSavedRecs(data ?? []);
+        setRecsLoading(false);
+      });
+  }, [familyId, isDemoMode]);
 
   return (
     <div className="space-y-6">
@@ -180,7 +204,16 @@ export default function Overview() {
         </div>
 
         <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-6">
-          <h2 className="font-semibold text-gray-900 dark:text-white mb-4">AI Recommendations</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-gray-900 dark:text-white">AI Recommendations</h2>
+            <button
+              onClick={() => navigate('/dashboard/ai-insights')}
+              className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 font-semibold hover:underline"
+            >
+              View All <ArrowRight size={12} />
+            </button>
+          </div>
+
           {isDemoMode ? (
             <div className="space-y-3">
               {aiRecommendations.slice(0, 3).map(rec => (
@@ -193,9 +226,37 @@ export default function Overview() {
                 </div>
               ))}
             </div>
+          ) : recsLoading ? (
+            <div className="flex items-center justify-center h-24">
+              <Loader2 className="animate-spin text-emerald-500" size={20} />
+            </div>
+          ) : savedRecs.length > 0 ? (
+            <div className="space-y-3">
+              {savedRecs.map((r: any) => {
+                const color = r.recommendation_type === 'warning' ? 'amber'
+                  : r.recommendation_type === 'tip' ? 'blue' : 'green';
+                const impact = r.priority ?? 'Medium';
+                return (
+                  <div key={r.id} className={`flex items-start gap-3 p-3 rounded-xl border ${colorMap[color] ?? colorMap.green}`}>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-bold uppercase tracking-wide mb-0.5">{r.title}</div>
+                      <div className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed line-clamp-2">{r.message}</div>
+                    </div>
+                    <span className={`text-xs font-bold whitespace-nowrap px-2 py-0.5 rounded-full ${
+                      impact === 'High' ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+                      : impact === 'Low' ? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+                      : 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
+                    }`}>{impact}</span>
+                  </div>
+                );
+              })}
+            </div>
           ) : (
             <div className="text-sm text-gray-500 italic p-4 text-center border border-dashed rounded-xl border-gray-200 dark:border-gray-800">
-              Visit the <span className="font-semibold text-emerald-600">AI Insights</span> tab to generate personalized recommendations.
+              No recommendations yet.{' '}
+              <button onClick={() => navigate('/dashboard/ai-insights')} className="font-semibold text-emerald-600 hover:underline">
+                Go to AI Insights
+              </button>{' '}to generate them.
             </div>
           )}
         </div>
