@@ -147,7 +147,7 @@ export default function MealPlanner() {
       {isGenerating && (
         <div className="flex items-center gap-3 px-4 py-3 bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800/40 rounded-xl text-sm text-violet-700 dark:text-violet-300">
           <Sparkles size={15} className="animate-pulse flex-shrink-0" />
-          Gemini is crafting a personalized weekly meal plan based on your family's profile and nutrition data…
+          NutriNest AI is crafting a personalized weekly meal plan based on your family's profile and nutrition data…
         </div>
       )}
 
