@@ -1,0 +1,130 @@
+import { Link, useLocation } from 'react-router-dom';
+import { LayoutDashboard, Calendar, ShoppingCart, BarChart2, Users, Zap, Settings, LogOut, Moon, Sun, Menu, X } from 'lucide-react';
+import { useState } from 'react';
+import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
+import { authService } from '../../services/auth';
+import Logo from '../../assets/Logo.png';
+
+const navItems = [
+  { icon: LayoutDashboard, label: 'Overview', path: '/dashboard' },
+  { icon: Calendar, label: 'Meal Planner', path: '/dashboard/meals' },
+  { icon: ShoppingCart, label: 'Grocery List', path: '/dashboard/grocery' },
+  { icon: BarChart2, label: 'Nutrition', path: '/dashboard/nutrition' },
+  { icon: Users, label: 'Family', path: '/dashboard/family' },
+  { icon: Zap, label: 'AI Insights', path: '/dashboard/insights' },
+];
+
+export default function Sidebar() {
+  const location = useLocation();
+  const { darkMode, toggleDarkMode } = useApp();
+  const { user } = useAuth();
+  const [collapsed, setCollapsed] = useState(false);
+
+  return (
+    <>
+      {/* Mobile overlay */}
+      <div className={`fixed inset-0 bg-black/40 z-20 lg:hidden ${collapsed ? 'hidden' : ''}`} onClick={() => setCollapsed(true)} />
+
+      <aside className={`
+        fixed lg:sticky top-0 left-0 h-screen z-30
+        flex flex-col bg-white dark:bg-gray-900 border-r border-gray-100 dark:border-gray-800
+        transition-all duration-300
+        ${collapsed ? 'w-16' : 'w-64'}
+      `}>
+        <div className="flex items-center justify-between h-16 px-4 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
+          {!collapsed && (
+            <Link to="/" className="flex items-center gap-2 min-w-0 hover:opacity-80 transition-opacity">
+              <img src={Logo} alt="NutriNest AI" className="h-8 w-8 rounded-lg object-cover flex-shrink-0" />
+              <span className="font-medium text-gray-900 dark:text-white text-sm truncate">NutriNest AI</span>
+            </Link>
+          )}
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className={`p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${collapsed ? 'mx-auto' : ''}`}
+          >
+            {collapsed ? <Menu size={18} /> : <X size={18} />}
+          </button>
+        </div>
+
+        <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-1">
+          {navItems.map(({ icon: Icon, label, path }) => {
+            const active = location.pathname === path;
+            return (
+              <Link
+                key={path}
+                to={path}
+                title={collapsed ? label : undefined}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group ${
+                  active
+                    ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
+                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
+                }`}
+              >
+                <Icon size={18} className="flex-shrink-0" />
+                {!collapsed && <span>{label}</span>}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="border-t border-gray-100 dark:border-gray-800 p-3 space-y-1">
+          <button
+            onClick={toggleDarkMode}
+            title={collapsed ? 'Toggle theme' : undefined}
+            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          >
+            {darkMode ? <Sun size={18} className="flex-shrink-0" /> : <Moon size={18} className="flex-shrink-0" />}
+            {!collapsed && <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>}
+          </button>
+          <Link
+            to="/dashboard/settings"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          >
+            <Settings size={18} className="flex-shrink-0" />
+            {!collapsed && <span>Settings</span>}
+          </Link>
+
+          {user ? (
+            <button
+              onClick={async () => { await authService.signOut(); }}
+              className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            >
+              <LogOut size={18} className="flex-shrink-0" />
+              {!collapsed && <span>Sign Out</span>}
+            </button>
+          ) : (
+            <>
+              <Link
+                to="/login"
+                className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              >
+                <LogOut size={18} className="flex-shrink-0" />
+                {!collapsed && <span>Sign In</span>}
+              </Link>
+              <Link
+                to="/signup"
+                className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 transition-colors"
+              >
+                <Zap size={18} className="flex-shrink-0" />
+                {!collapsed && <span>Start Free</span>}
+              </Link>
+            </>
+          )}
+
+          {!collapsed && user && (
+            <div className="mt-2 pt-3 border-t border-gray-100 dark:border-gray-800 flex items-center gap-3 px-1">
+              <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center text-xs font-bold text-emerald-700 dark:text-emerald-300 flex-shrink-0">
+                {user.email?.charAt(0).toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-semibold text-gray-900 dark:text-white truncate">{user.email?.split('@')[0]}</div>
+                <div className="text-xs text-gray-400 truncate">{user.email}</div>
+              </div>
+            </div>
+          )}
+        </div>
+      </aside>
+    </>
+  );
+}
