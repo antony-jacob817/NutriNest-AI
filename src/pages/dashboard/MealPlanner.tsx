@@ -62,18 +62,17 @@ export default function MealPlanner() {
     setGenSuccess(false);
     try {
       const plan = await aiService.generateMealPlan(members, logs);
-      // Save each meal to Supabase
-      const allSaves: Promise<void>[] = [];
+      // Save meals sequentially so the first call creates the plan and
+      // subsequent calls reuse it — avoids the parallel race condition.
       for (const day of DAYS) {
         const dayPlan = plan[day];
         if (!dayPlan) continue;
         for (const type of ['breakfast', 'lunch', 'dinner', 'snack'] as MealType[]) {
           if (dayPlan[type]) {
-            allSaves.push(upsertMeal(day, type, dayPlan[type]));
+            await upsertMeal(day, type, dayPlan[type]);
           }
         }
       }
-      await Promise.all(allSaves);
       setGenSuccess(true);
       setTimeout(() => setGenSuccess(false), 3000);
     } catch (err: any) {

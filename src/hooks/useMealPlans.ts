@@ -58,12 +58,16 @@ export function useMealPlans(familyId: string | null, isDemoMode: boolean) {
       const weekStartStr = weekStart.toISOString().split('T')[0];
 
       // Find or get current meal plan
-      const { data: planData } = await supabase
+      const { data: planData, error: planErr } = await supabase
         .from('meal_plans')
         .select('*')
         .eq('family_id', familyId)
         .eq('week_start', weekStartStr)
-        .single();
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (planErr) throw planErr;
 
       if (planData) {
         setMealPlan(planData);
@@ -116,21 +120,50 @@ export function useMealPlans(familyId: string | null, isDemoMode: boolean) {
 
     let planId = mealPlan?.id;
 
-    // Create plan if not exists
+    // Create or find plan atomically (safe even when called in parallel by AI generation)
     if (!planId) {
       const today = new Date();
       const weekStart = new Date(today);
       weekStart.setDate(today.getDate() - today.getDay());
       const weekStartStr = weekStart.toISOString().split('T')[0];
 
-      const { data: newPlan, error: planErr } = await supabase
+      // Try to find existing plan first
+      const { data: existingPlan } = await supabase
         .from('meal_plans')
-        .insert({ family_id: familyId, week_start: weekStartStr, status: 'active', ai_generated: false })
-        .select()
-        .single();
-      if (planErr) throw planErr;
-      setMealPlan(newPlan);
-      planId = newPlan.id;
+        .select('*')
+        .eq('family_id', familyId)
+        .eq('week_start', weekStartStr)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existingPlan) {
+        setMealPlan(existingPlan);
+        planId = existingPlan.id;
+      } else {
+        const { data: newPlan, error: planErr } = await supabase
+          .from('meal_plans')
+          .insert({ family_id: familyId, week_start: weekStartStr, status: 'active', ai_generated: true })
+          .select()
+          .single();
+        if (planErr) {
+          // Another parallel call may have just inserted — fetch it
+          const { data: racedPlan } = await supabase
+            .from('meal_plans')
+            .select('*')
+            .eq('family_id', familyId)
+            .eq('week_start', weekStartStr)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (!racedPlan) throw planErr;
+          setMealPlan(racedPlan);
+          planId = racedPlan.id;
+        } else {
+          setMealPlan(newPlan);
+          planId = newPlan.id;
+        }
+      }
     }
 
     const existing = meals.find(m => m.day_of_week === dayOfWeek && m.meal_type === mealType);

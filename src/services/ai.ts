@@ -74,7 +74,7 @@ Rules:
       const body = err?.message ?? '';
       const isQuota = body.includes('429') || body.includes('RESOURCE_EXHAUSTED') || body.includes('quota');
       if (isQuota) {
-        throw new Error('Gemini API rate limit reached. Please wait a minute and try again.');
+        throw new Error('NutriNest AI API rate limit reached. Please wait a minute and try again.');
       }
       console.error('[AI] generateInsights failed:', body);
       throw err;
@@ -135,7 +135,7 @@ Return ONLY a valid JSON object (no markdown, no explanation):
     } catch (err: any) {
       const body = err?.message ?? '';
       const isQuota = body.includes('429') || body.includes('RESOURCE_EXHAUSTED') || body.includes('quota');
-      if (isQuota) throw new Error('Gemini API rate limit reached. Please wait a minute and try again.');
+      if (isQuota) throw new Error('NutriNest AI API rate limit reached. Please wait a minute and try again.');
       console.error('[AI] generateMealPlan failed:', body);
       throw err;
     }
