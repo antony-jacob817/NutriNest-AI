@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, Twitter, Github, Linkedin } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import Logo from '../../assets/Logo.png';
 
 export default function CTAFooter() {
@@ -29,41 +29,17 @@ export default function CTAFooter() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-gray-950 text-gray-400 py-16">
+      <footer className="bg-gray-950 text-gray-400 py-5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-4 gap-12 mb-12">
+          <div className="grid md:grid-cols-4 gap-5">
             <div className="md:col-span-1">
               <div className="flex items-center gap-2 mb-4">
-                <img src={Logo} alt="NutriNest AI" className="h-8 w-8 rounded-lg object-cover" />
-                <span className="font-bold text-white">NutriNest AI</span>
-              </div>
-              <p className="text-sm leading-relaxed mb-5">Family nutrition, planned in minutes.</p>
-              <div className="flex gap-3">
-                {[Twitter, Github, Linkedin].map((Icon, i) => (
-                  <a key={i} href="#" className="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center hover:bg-gray-700 transition-colors">
-                    <Icon size={15} />
-                  </a>
-                ))}
+                <img src={Logo} alt="NutriNest AI" className="h-12 w-12 rounded-lg object-cover" />
+                <span className="font-bold text-white text-lg">NutriNest AI</span>
               </div>
             </div>
-            {[
-              { heading: 'Product', links: ['Features', 'Pricing', 'Changelog', 'Roadmap'] },
-              { heading: 'Resources', links: ['Documentation', 'Blog', 'Community', 'Support'] },
-              { heading: 'Company', links: ['About', 'Careers', 'Privacy', 'Terms'] },
-            ].map(col => (
-              <div key={col.heading}>
-                <h4 className="font-semibold text-white text-sm mb-4">{col.heading}</h4>
-                <ul className="space-y-2">
-                  {col.links.map(link => (
-                    <li key={link}>
-                      <a href="#" className="text-sm hover:text-white transition-colors">{link}</a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
           </div>
-          <div className="border-t border-gray-800 pt-8 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="pt-3 flex flex-col sm:flex-row items-center justify-between gap-3">
             <p className="text-xs">© 2026 NutriNest AI. All rights reserved.</p>
             <p className="text-xs">Made with care for families everywhere.</p>
           </div>
