@@ -207,7 +207,7 @@ export default function Overview() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-gray-900 dark:text-white">AI Recommendations</h2>
             <button
-              onClick={() => navigate('/dashboard/ai-insights')}
+              onClick={() => navigate('/dashboard/insights')}
               className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 font-semibold hover:underline"
             >
               View All <ArrowRight size={12} />
@@ -217,12 +217,14 @@ export default function Overview() {
           {isDemoMode ? (
             <div className="space-y-3">
               {aiRecommendations.slice(0, 3).map(rec => (
-                <div key={rec.id} className={`flex items-start gap-3 p-3 rounded-xl ${colorMap[rec.color] ?? colorMap.green} bg-opacity-50`}>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs font-bold uppercase tracking-wide mb-0.5">{rec.title}</div>
-                    <div className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">{rec.description}</div>
+                <div key={rec.id} className={`p-3 rounded-xl ${colorMap[rec.color] ?? colorMap.green} bg-opacity-50`}>
+                  <div className="flex items-start gap-3 mb-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-bold uppercase tracking-wide mb-0.5">{rec.title}</div>
+                      <div className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">{rec.description}</div>
+                    </div>
+                    <span className="text-xs font-bold whitespace-nowrap">{rec.impact}</span>
                   </div>
-                  <span className="text-xs font-bold whitespace-nowrap">{rec.impact}</span>
                 </div>
               ))}
             </div>
@@ -236,17 +238,36 @@ export default function Overview() {
                 const color = r.recommendation_type === 'warning' ? 'amber'
                   : r.recommendation_type === 'tip' ? 'blue' : 'green';
                 const impact = r.priority ?? 'Medium';
+                // Map action field to the correct dashboard route
+                const routeMap: Record<string, string> = {
+                  family: '/dashboard/family',
+                  nutrition: '/dashboard/nutrition',
+                  'meal-planner': '/dashboard/meals',
+                  grocery: '/dashboard/grocery',
+                  settings: '/dashboard/settings',
+                };
+                const action = r.action ?? 'nutrition';
+                const applyRoute = routeMap[action] ?? '/dashboard/nutrition';
+
                 return (
-                  <div key={r.id} className={`flex items-start gap-3 p-3 rounded-xl border ${colorMap[color] ?? colorMap.green}`}>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs font-bold uppercase tracking-wide mb-0.5">{r.title}</div>
-                      <div className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed line-clamp-2">{r.message}</div>
+                  <div key={r.id} className={`p-3 rounded-xl border ${colorMap[color] ?? colorMap.green}`}>
+                    <div className="flex items-start gap-3 mb-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-bold uppercase tracking-wide mb-0.5">{r.title}</div>
+                        <div className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed line-clamp-2">{r.message}</div>
+                      </div>
+                      <span className={`text-xs font-bold whitespace-nowrap px-2 py-0.5 rounded-full flex-shrink-0 ${
+                        impact === 'High' ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+                        : impact === 'Low' ? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+                        : 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
+                      }`}>{impact}</span>
                     </div>
-                    <span className={`text-xs font-bold whitespace-nowrap px-2 py-0.5 rounded-full ${
-                      impact === 'High' ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
-                      : impact === 'Low' ? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-                      : 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
-                    }`}>{impact}</span>
+                    <button
+                      onClick={() => navigate(applyRoute)}
+                      className="flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
+                    >
+                      Apply <ArrowRight size={11} />
+                    </button>
                   </div>
                 );
               })}
@@ -254,7 +275,7 @@ export default function Overview() {
           ) : (
             <div className="text-sm text-gray-500 italic p-4 text-center border border-dashed rounded-xl border-gray-200 dark:border-gray-800">
               No recommendations yet.{' '}
-              <button onClick={() => navigate('/dashboard/ai-insights')} className="font-semibold text-emerald-600 hover:underline">
+              <button onClick={() => navigate('/dashboard/insights')} className="font-semibold text-emerald-600 hover:underline">
                 Go to AI Insights
               </button>{' '}to generate them.
             </div>
