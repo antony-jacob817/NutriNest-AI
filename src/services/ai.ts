@@ -41,7 +41,7 @@ Rules:
 
     try {
       const response = await aiClient.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-2.5-flash',
         contents: prompt,
       });
 
@@ -116,7 +116,7 @@ Return ONLY a valid JSON object (no markdown, no explanation):
 
     try {
       const response = await aiClient.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-2.5-flash',
         contents: prompt,
       });
 
