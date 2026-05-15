@@ -1,4 +1,4 @@
-# 🥗 NutriNest AI
+#  NutriNest AI
 <p align="center">
   <img width="1849" height="867" alt="Screenshot 2026-05-11 202902" src="https://github.com/user-attachments/assets/10aa2fd7-dadb-4da0-9a2e-a09c9edd3ba8" />
 </p>
