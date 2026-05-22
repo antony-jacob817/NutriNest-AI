@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Calendar, ShoppingCart, BarChart2, Users, Zap, Settings, LogOut, Moon, Sun, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 import { useApp } from '../../context/AppContext';
@@ -17,9 +17,16 @@ const navItems = [
 
 export default function Sidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { darkMode, toggleDarkMode } = useApp();
   const { user } = useAuth();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
+
+  const handleLinkClick = () => {
+    if (window.innerWidth < 1024) {
+      setCollapsed(true);
+    }
+  };
 
   return (
     <>
@@ -34,7 +41,7 @@ export default function Sidebar() {
       `}>
         <div className="flex items-center justify-between h-16 px-4 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
           {!collapsed && (
-            <Link to="/" className="flex items-center gap-2 min-w-0 hover:opacity-80 transition-opacity">
+            <Link to="/" onClick={handleLinkClick} className="flex items-center gap-2 min-w-0 hover:opacity-80 transition-opacity">
               <img src={Logo} alt="NutriNest AI" className="h-8 w-8 rounded-lg object-cover flex-shrink-0" />
               <span className="font-medium text-gray-900 dark:text-white text-sm truncate">NutriNest AI</span>
             </Link>
@@ -55,6 +62,7 @@ export default function Sidebar() {
                 key={path}
                 to={path}
                 title={collapsed ? label : undefined}
+                onClick={handleLinkClick}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group ${
                   active
                     ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
@@ -79,6 +87,7 @@ export default function Sidebar() {
           </button>
           <Link
             to="/dashboard/settings"
+            onClick={handleLinkClick}
             className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
           >
             <Settings size={18} className="flex-shrink-0" />
@@ -87,7 +96,11 @@ export default function Sidebar() {
 
           {user ? (
             <button
-              onClick={async () => { await authService.signOut(); }}
+              onClick={async () => {
+                await authService.signOut();
+                handleLinkClick();
+                navigate('/');
+              }}
               className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
             >
               <LogOut size={18} className="flex-shrink-0" />
@@ -97,6 +110,7 @@ export default function Sidebar() {
             <>
               <Link
                 to="/login"
+                onClick={handleLinkClick}
                 className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
               >
                 <LogOut size={18} className="flex-shrink-0" />
@@ -104,6 +118,7 @@ export default function Sidebar() {
               </Link>
               <Link
                 to="/signup"
+                onClick={handleLinkClick}
                 className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 transition-colors"
               >
                 <Zap size={18} className="flex-shrink-0" />

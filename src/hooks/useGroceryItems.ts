@@ -38,13 +38,15 @@ export function useGroceryItems(familyId: string | null, isDemoMode: boolean) {
     setError(null);
     try {
       // Get latest grocery list for family
-      const { data: listData } = await supabase
+      const { data: listDataArray, error: listErr } = await supabase
         .from('grocery_lists')
         .select('*')
         .eq('family_id', familyId)
         .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
+        .limit(1);
+
+      if (listErr) throw listErr;
+      const listData = listDataArray && listDataArray.length > 0 ? listDataArray[0] : null;
 
       if (listData) {
         setGroceryList(listData);

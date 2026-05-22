@@ -1,8 +1,12 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, Play } from 'lucide-react';
 import HeroImage from '../../assets/Hero_image.png';
+import { useAuth } from '../../context/AuthContext';
 
 export default function Hero() {
+  const { user } = useAuth();
+  const targetPath = user ? '/dashboard' : '/signup';
+
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden bg-gradient-to-br from-stone-50 via-white to-emerald-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 pt-16">
       {/* Background decoration */}
@@ -35,7 +39,7 @@ export default function Hero() {
 
             <div className="flex flex-wrap gap-4">
               <Link
-                to="/signup"
+                to={targetPath}
                 className="group inline-flex items-center gap-2 px-6 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-emerald-600/25 hover:shadow-emerald-600/40 hover:-translate-y-0.5"
               >
                 Start Free

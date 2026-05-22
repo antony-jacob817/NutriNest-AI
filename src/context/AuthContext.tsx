@@ -177,7 +177,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { dbUser: du, familyProfile: fp } = await bootstrapUser(authUser);
       setDbUser(du);
       setFamilyProfile(fp);
-      console.log('[Bootstrap] ✅ Complete — familyId:', fp.id);
     } catch (err: any) {
       const msg = err.message ?? 'Unknown bootstrap error';
       setBootstrapError(msg);

@@ -1,8 +1,12 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import Logo from '../../assets/Logo.png';
+import { useAuth } from '../../context/AuthContext';
 
 export default function CTAFooter() {
+  const { user } = useAuth();
+  const targetPath = user ? '/dashboard' : '/signup';
+
   return (
     <>
       {/* CTA Banner */}
@@ -18,7 +22,7 @@ export default function CTAFooter() {
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             <Link
-              to="/signup"
+              to={targetPath}
               className="group inline-flex items-center gap-2 px-8 py-4 bg-white text-emerald-700 font-bold rounded-xl hover:bg-emerald-50 transition-all hover:-translate-y-0.5 shadow-xl"
             >
               Start Free — No Credit Card

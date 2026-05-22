@@ -1,5 +1,6 @@
 import { Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 
 const plans = [
   {
@@ -32,6 +33,9 @@ const plans = [
 ];
 
 export default function Pricing() {
+  const { user } = useAuth();
+  const targetPath = user ? '/dashboard' : '/signup';
+
   return (
     <section id="pricing" className="py-24 bg-stone-50 dark:bg-gray-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -75,7 +79,7 @@ export default function Pricing() {
               </ul>
 
               <Link
-                to="/signup"
+                to={targetPath}
                 className={`block text-center py-3 rounded-xl font-semibold text-sm transition-all ${
                   plan.featured
                     ? 'bg-white text-emerald-700 hover:bg-emerald-50'

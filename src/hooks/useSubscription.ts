@@ -25,15 +25,15 @@ export function useSubscription(authUser: User | null, subscriptionTierFromDB?: 
     }
 
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('subscriptions')
         .select('*')
         .eq('user_id', authUser.id)
         .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
+        .limit(1);
 
-      if (data) setSubscription(data);
+      if (error) throw error;
+      if (data && data.length > 0) setSubscription(data[0]);
     } catch {
       // No subscription row is fine — tier comes from users.subscription_tier
     } finally {

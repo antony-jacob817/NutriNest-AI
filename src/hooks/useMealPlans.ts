@@ -58,16 +58,16 @@ export function useMealPlans(familyId: string | null, isDemoMode: boolean) {
       const weekStartStr = weekStart.toISOString().split('T')[0];
 
       // Find or get current meal plan
-      const { data: planData, error: planErr } = await supabase
+      const { data: planDataArray, error: planErr } = await supabase
         .from('meal_plans')
         .select('*')
         .eq('family_id', familyId)
         .eq('week_start', weekStartStr)
         .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(1);
 
       if (planErr) throw planErr;
+      const planData = planDataArray && planDataArray.length > 0 ? planDataArray[0] : null;
 
       if (planData) {
         setMealPlan(planData);
@@ -128,14 +128,15 @@ export function useMealPlans(familyId: string | null, isDemoMode: boolean) {
       const weekStartStr = weekStart.toISOString().split('T')[0];
 
       // Try to find existing plan first
-      const { data: existingPlan } = await supabase
+      const { data: existingPlanArray } = await supabase
         .from('meal_plans')
         .select('*')
         .eq('family_id', familyId)
         .eq('week_start', weekStartStr)
         .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(1);
+
+      const existingPlan = existingPlanArray && existingPlanArray.length > 0 ? existingPlanArray[0] : null;
 
       if (existingPlan) {
         setMealPlan(existingPlan);
@@ -148,14 +149,14 @@ export function useMealPlans(familyId: string | null, isDemoMode: boolean) {
           .single();
         if (planErr) {
           // Another parallel call may have just inserted — fetch it
-          const { data: racedPlan } = await supabase
+          const { data: racedPlanArray } = await supabase
             .from('meal_plans')
             .select('*')
             .eq('family_id', familyId)
             .eq('week_start', weekStartStr)
             .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
+            .limit(1);
+          const racedPlan = racedPlanArray && racedPlanArray.length > 0 ? racedPlanArray[0] : null;
           if (!racedPlan) throw planErr;
           setMealPlan(racedPlan);
           planId = racedPlan.id;
