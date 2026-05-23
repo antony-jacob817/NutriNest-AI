@@ -19,7 +19,8 @@ export default function Navbar() {
             <span className="font-bold text-lg text-gray-900 dark:text-white">NutriNest AI</span>
           </Link>
 
-          <div className="hidden md:flex items-center gap-8">
+          {/* Desktop Navigation */}
+          <div className="hidden lg:flex items-center gap-8">
             {['Features', 'How It Works', 'Pricing', 'FAQ'].map(item => (
               <a
                 key={item}
@@ -31,21 +32,24 @@ export default function Navbar() {
             ))}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <button
               onClick={toggleDarkMode}
               className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              aria-label="Toggle theme"
             >
               {darkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
+            
+            {/* Desktop Auth Buttons */}
             {user && !isDemoMode ? (
               <>
-                <span className="hidden md:inline-flex text-sm font-medium text-gray-700 dark:text-gray-300">
+                <span className="hidden lg:inline-flex text-sm font-medium text-gray-700 dark:text-gray-300">
                   {user.user_metadata?.full_name?.split(' ')[0] || user.email}
                 </span>
                 <Link
                   to="/dashboard"
-                  className="hidden md:inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
+                  className="hidden lg:inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
                 >
                   Dashboard
                 </Link>
@@ -54,21 +58,24 @@ export default function Navbar() {
               <>
                 <Link
                   to="/login"
-                  className="hidden md:inline-flex text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
+                  className="hidden lg:inline-flex text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
                 >
                   Sign In
                 </Link>
                 <Link
                   to="/signup"
-                  className="hidden md:inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
+                  className="hidden lg:inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
                 >
                   Start Free
                 </Link>
               </>
             )}
+
+            {/* Mobile/Tablet Menu Button */}
             <button
               onClick={() => setMenuOpen(!menuOpen)}
-              className="md:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+              className="lg:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              aria-label="Toggle menu"
             >
               {menuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
@@ -76,25 +83,45 @@ export default function Navbar() {
         </div>
       </div>
 
+      {/* Mobile/Tablet Dropdown Drawer */}
       {menuOpen && (
-        <div className="md:hidden border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-950 px-4 py-4 space-y-3">
+        <div className="lg:hidden border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-950 px-4 py-4 space-y-3 shadow-xl">
           {['Features', 'How It Works', 'Pricing', 'FAQ'].map(item => (
             <a
               key={item}
               href={`#${item.toLowerCase().replace(/\s+/g, '-')}`}
               onClick={() => setMenuOpen(false)}
-              className="block text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+              className="block px-2 py-1 text-base text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
             >
               {item}
             </a>
           ))}
-          <div className="flex gap-3 pt-2">
+          {/* CHANGED: Swapped flex-col for a 2-column grid layout to ensure buttons sit side by side on all mobile viewports */}
+          <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-100 dark:border-gray-800">
             {user && !isDemoMode ? (
-              <Link to="/dashboard" className="flex-1 text-center py-2 text-sm font-semibold text-white bg-emerald-600 rounded-lg">Dashboard</Link>
+              <Link 
+                to="/dashboard" 
+                onClick={() => setMenuOpen(false)}
+                className="col-span-2 w-full text-center py-2.5 text-sm font-semibold text-white bg-emerald-600 rounded-lg"
+              >
+                Dashboard
+              </Link>
             ) : (
               <>
-                <Link to="/login" className="flex-1 text-center py-2 text-sm font-medium border border-gray-200 dark:border-gray-700 rounded-lg text-gray-700 dark:text-gray-300">Sign In</Link>
-                <Link to="/signup" className="flex-1 text-center py-2 text-sm font-semibold text-white bg-emerald-600 rounded-lg">Start Free</Link>
+                <Link 
+                  to="/login" 
+                  onClick={() => setMenuOpen(false)}
+                  className="w-full text-center py-2.5 text-sm font-medium border border-gray-200 dark:border-gray-700 rounded-lg text-gray-700 dark:text-gray-300"
+                >
+                  Sign In
+                </Link>
+                <Link 
+                  to="/signup" 
+                  onClick={() => setMenuOpen(false)}
+                  className="w-full text-center py-2.5 text-sm font-semibold text-white bg-emerald-600 rounded-lg"
+                >
+                  Start Free
+                </Link>
               </>
             )}
           </div>

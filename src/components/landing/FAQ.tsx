@@ -32,31 +32,31 @@ export default function FAQ() {
   const [open, setOpen] = useState<number | null>(null);
 
   return (
-    <section id="faq" className="py-24 bg-white dark:bg-gray-950">
+    <section id="faq" className="py-16 sm:py-24 bg-white dark:bg-gray-950">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-16">
+        <div className="text-center mb-12 sm:mb-16">
           <p className="text-sm font-semibold uppercase tracking-widest text-emerald-600 dark:text-emerald-400 mb-3">FAQ</p>
-          <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 dark:text-white mb-4">Common questions</h2>
+          <h2 className="text-3xl sm:text-5xl font-bold text-gray-900 dark:text-white mb-4">Common questions</h2>
         </div>
 
         <div className="space-y-3">
           {faqs.map((faq, i) => (
             <div
               key={i}
-              className="border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden"
+              className="border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden bg-white dark:bg-gray-900"
             >
               <button
                 onClick={() => setOpen(open === i ? null : i)}
-                className="w-full flex items-center justify-between px-6 py-5 text-left bg-white dark:bg-gray-900 hover:bg-stone-50 dark:hover:bg-gray-800 transition-colors"
+                className="w-full flex items-center justify-between px-4 sm:px-6 py-5 text-left hover:bg-stone-50 dark:hover:bg-gray-800 transition-colors"
               >
-                <span className="font-semibold text-gray-900 dark:text-white text-sm pr-4">{faq.q}</span>
+                <span className="font-semibold text-gray-900 dark:text-white text-sm pr-4 leading-snug">{faq.q}</span>
                 <ChevronDown
                   size={18}
                   className={`flex-shrink-0 text-gray-400 transition-transform duration-200 ${open === i ? 'rotate-180' : ''}`}
                 />
               </button>
               {open === i && (
-                <div className="px-6 pb-5 bg-white dark:bg-gray-900">
+                <div className="px-4 sm:px-6 pb-5">
                   <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">{faq.a}</p>
                 </div>
               )}

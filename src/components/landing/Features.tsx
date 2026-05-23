@@ -50,21 +50,22 @@ const colorMap: Record<string, string> = {
 
 export default function Features() {
   return (
-    <section id="features" className="py-24 bg-white dark:bg-gray-950">
+    <section id="features" className="py-16 sm:py-24 bg-white dark:bg-gray-950 overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-16">
+        <div className="text-center mb-12 sm:mb-16">
           <p className="text-sm font-semibold uppercase tracking-widest text-emerald-600 dark:text-emerald-400 mb-3">Features</p>
-          <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 dark:text-white mb-4">Everything your family needs</h2>
-          <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+          <h2 className="text-3xl sm:text-5xl font-bold text-gray-900 dark:text-white mb-4">Everything your family needs</h2>
+          <p className="text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
             One platform to plan, track, and optimize your family's nutrition — powered by AI.
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {/* Horizontal scroll layout on mobile, standard grid layout on desktop */}
+        <div className="flex md:grid overflow-x-auto md:overflow-x-visible snap-x snap-mandatory md:snap-none md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 pb-4 md:pb-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           {features.map((f) => (
             <div
               key={f.title}
-              className="group p-8 rounded-2xl border border-gray-100 dark:border-gray-800 hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-lg transition-all duration-300 hover:-translate-y-1 bg-white dark:bg-gray-900"
+              className="group p-6 sm:p-8 rounded-2xl border border-gray-100 dark:border-gray-800 hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-lg transition-all duration-300 sm:hover:-translate-y-1 bg-white dark:bg-gray-900 w-[280px] sm:w-[340px] md:w-auto shrink-0 snap-center"
             >
               <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-5 ${colorMap[f.color]}`}>
                 <f.icon size={22} />

@@ -9,7 +9,7 @@ import CTAFooter from '../components/landing/CTAFooter';
 
 export default function LandingPage() {
   return (
-    <div className="bg-white dark:bg-gray-950">
+    <div className="bg-white dark:bg-gray-950 min-h-screen w-full overflow-x-hidden">
       <Navbar />
       <Hero />
       <Features />

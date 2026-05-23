@@ -72,15 +72,12 @@ export default function Settings() {
     setIsUpgrading(tier);
     setUpgradeMsg('');
     try {
-      // Update users table
       const { error } = await supabase
         .from('users')
         .update({ subscription_tier: tier })
         .eq('id', user.id);
       if (error) throw error;
 
-      // Sync subscriptions table: delete existing row, insert fresh one
-      // This guarantees exactly 1 row per user with the correct plan
       await supabase.from('subscriptions').delete().eq('user_id', user.id);
       await supabase.from('subscriptions').insert({
         user_id: user.id,
@@ -88,7 +85,6 @@ export default function Settings() {
         status: 'active',
       });
 
-      // Refresh AuthContext so limits apply immediately
       await refreshBootstrap();
 
       const name = tier === 'pro' ? 'Family' : 'Premium';
@@ -101,7 +97,6 @@ export default function Settings() {
     }
   };
 
-  // Open cancel modal: fetch current member count first
   const handleOpenCancelModal = async () => {
     if (!user || !familyId) return;
     const { data } = await supabase
@@ -112,8 +107,6 @@ export default function Settings() {
     setShowCancelModal(true);
   };
 
-  // Perform the downgrade
-  // forceRemove = true → delete excess members automatically
   const handleCancelPlan = async (forceRemove = false) => {
     if (!user || !familyId) return;
     setIsCancelling(true);
@@ -122,7 +115,6 @@ export default function Settings() {
       const newTier = subscriptionTier === 'premium' ? 'pro' : 'free';
 
       if (subscriptionTier === 'pro') {
-        // Downgrade to Free → remove all members except the primary (oldest)
         const { data: members } = await supabase
           .from('family_members').select('id')
           .eq('family_id', familyId).order('created_at', { ascending: true });
@@ -131,7 +123,6 @@ export default function Settings() {
           await supabase.from('family_members').delete().in('id', toDelete);
         }
       } else if (subscriptionTier === 'premium' && cancelMemberCount > 6 && forceRemove) {
-        // Downgrade Premium→Family with too many members: keep first 6, remove rest
         const { data: members } = await supabase
           .from('family_members').select('id')
           .eq('family_id', familyId).order('created_at', { ascending: true });
@@ -141,12 +132,10 @@ export default function Settings() {
         }
       }
 
-      // Update tier in users table
       const { error } = await supabase.from('users')
         .update({ subscription_tier: newTier }).eq('id', user.id);
       if (error) throw error;
 
-      // Sync subscriptions table
       await supabase.from('subscriptions').delete().eq('user_id', user.id);
       await supabase.from('subscriptions').insert({
         user_id: user.id, plan_name: newTier, status: 'active',
@@ -187,6 +176,11 @@ export default function Settings() {
     }
   };
 
+  const handleSignOut = async () => {
+    try { await authService.signOut(); navigate('/'); }
+    catch (err) { console.error('Sign out failed', err); }
+  };
+
   const handleChangePassword = async () => {
     if (!newPw || newPw !== confirmPw) {
       setPwMsg({ type: 'error', text: 'Passwords do not match.' }); return;
@@ -213,8 +207,6 @@ export default function Settings() {
     setIsExporting(true);
     try {
       const uid = user.id;
-
-      // Fetch all user data in parallel
       const [profileRes, familyRes, membersRes, logsRes, plansRes, mealsRes, groceryRes, itemsRes, insightsRes] =
         await Promise.all([
           supabase.from('users').select('*').eq('id', uid).maybeSingle(),
@@ -263,8 +255,6 @@ export default function Settings() {
     setIsDeleting(true); setDeleteError('');
     try {
       const uid = user.id;
-
-      // ── 1. Delete all public table data in FK dependency order ────────────
       let memberIds: string[] = [];
       if (familyId) {
         const { data: mems } = await supabase.from('family_members').select('id').eq('family_id', familyId);
@@ -296,18 +286,11 @@ export default function Settings() {
       await supabase.from('subscriptions').delete().eq('user_id', uid);
       await supabase.from('users').delete().eq('id', uid);
 
-      // ── 2. Delete from auth.users via SECURITY DEFINER RPC ───────────────
-      // This purges the row from auth.users, preventing re-login with old credentials.
       await supabase.rpc('delete_user').then(({ error }) => {
         if (error) console.error('[DeleteAccount] RPC error:', error.message);
       });
 
-      // ── 3. Clear client session so UI immediately reflects logged-out state ─
-      // rpc('delete_user') kills the server session but the local JWT stays cached
-      // until we explicitly sign out.
       await supabase.auth.signOut();
-
-      // Replace history so back-button can't return to dashboard
       navigate('/', { replace: true });
     } catch (err: any) {
       setDeleteError(err.message || 'Failed to delete account. Please try again.');
@@ -315,67 +298,64 @@ export default function Settings() {
     }
   };
 
-  const handleSignOut = async () => {
-    try { await authService.signOut(); navigate('/'); }
-    catch (err) { console.error('Sign out failed', err); }
-  };
-
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 w-full max-w-2xl overflow-hidden pb-12">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Settings</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage your account preferences and notifications.</p>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Settings</h1>
+        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Manage your account preferences and notifications.</p>
       </div>
 
-      {/* Subscription */}
-      <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-6">
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div>
-            <h2 className="font-semibold text-gray-900 dark:text-white">Subscription Plan</h2>
-            <p className="text-sm text-gray-500 mt-1">
+      {/* Subscription Card Block */}
+      <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-4 sm:p-6 w-full">
+        {/* Adjusted to stack dynamically on small screens */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="min-w-0">
+            <h2 className="font-semibold text-gray-900 dark:text-white text-base">Subscription Plan</h2>
+            <p className="text-sm text-gray-500 mt-1 truncate">
               Current plan:{' '}
               <span className={`font-bold ${isPaidPlan ? 'text-emerald-600' : 'text-gray-700 dark:text-gray-300'}`}>
                 {displayTier}
               </span>
             </p>
             {!isDemoMode && familyProfile && (
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-gray-400 mt-1 truncate">
                 Family: <span className="font-medium">{familyProfile.family_name ?? 'My Family'}</span>
                 {familyProfile.household_size ? ` · ${familyProfile.household_size} members` : ''}
               </p>
             )}
           </div>
-          {!isDemoMode && subscriptionTier !== 'premium' && (
-            <button
-              onClick={() => setShowPricingModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-sm font-semibold rounded-xl transition-all shadow-sm"
-            >
-              <Crown size={14} />
-              {subscriptionTier === 'free' ? 'View Plans' : 'Upgrade to Premium'}
-            </button>
-          )}
-          {!isDemoMode && isPaidPlan && (
-            <button
-              onClick={handleOpenCancelModal}
-              className="flex items-center gap-2 px-4 py-2 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-medium rounded-xl transition-all"
-            >
-              Cancel Plan
-            </button>
-          )}
+          <div className="flex flex-col sm:flex-row gap-2.5 w-full sm:w-auto flex-shrink-0">
+            {!isDemoMode && subscriptionTier !== 'premium' && (
+              <button
+                onClick={() => setShowPricingModal(true)}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-sm font-semibold rounded-xl transition-all shadow-sm w-full sm:w-auto"
+              >
+                <Crown size={14} className="flex-shrink-0" />
+                <span>{subscriptionTier === 'free' ? 'View Plans' : 'Upgrade to Premium'}</span>
+              </button>
+            )}
+            {!isDemoMode && isPaidPlan && (
+              <button
+                onClick={handleOpenCancelModal}
+                className="flex items-center justify-center gap-2 px-4 py-2 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-medium rounded-xl transition-all w-full sm:w-auto"
+              >
+                Cancel Plan
+              </button>
+            )}
+          </div>
         </div>
         {!isDemoMode && !isPaidPlan && (
-          <p className="text-xs text-gray-400 mt-3 pt-3 border-t border-gray-50 dark:border-gray-800">
+          <p className="text-xs text-gray-400 mt-4 pt-3 border-t border-gray-50 dark:border-gray-800/40">
             Free plan: 1 family member · <button onClick={() => setShowPricingModal(true)} className="underline font-medium text-emerald-600">See Family & Premium plans</button> to unlock more.
           </p>
         )}
       </div>
 
-      {/* Profile */}
-      <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-6">
+      {/* Profile Settings Card Block */}
+      <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-4 sm:p-6 w-full">
         <div className="flex items-center gap-3 mb-5">
-          <User size={18} className="text-gray-400" />
-          <h2 className="font-semibold text-gray-900 dark:text-white">Profile</h2>
+          <User size={18} className="text-gray-400 flex-shrink-0" />
+          <h2 className="font-semibold text-gray-900 dark:text-white text-base">Profile</h2>
         </div>
         <div className="space-y-4">
           <div>
@@ -385,13 +365,13 @@ export default function Settings() {
               onChange={e => setNameValue(e.target.value)}
               disabled={isDemoMode}
               placeholder={isDemoMode ? 'Alex Johnson' : 'Your name'}
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
             />
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Email Address</label>
             <input type="email" value={displayEmail} disabled
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-gray-400 text-sm cursor-not-allowed" />
+              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-gray-400 text-xs sm:text-sm cursor-not-allowed" />
             <p className="text-xs text-gray-400 mt-1">Email cannot be changed here.</p>
           </div>
 
@@ -399,51 +379,54 @@ export default function Settings() {
             <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-lg text-sm">{saveError}</div>
           )}
           {!isDemoMode && (
-            <button onClick={handleSaveName} disabled={isSaving || !nameValue.trim()}
-              className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-colors">
+            <button 
+              onClick={handleSaveName} 
+              disabled={isSaving || !nameValue.trim()}
+              className="flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-colors w-full sm:w-auto"
+            >
               {saved ? <><Check size={14} /> Saved!</> : isSaving ? <><Loader2 size={14} className="animate-spin" /> Saving…</> : 'Save Changes'}
             </button>
           )}
         </div>
       </div>
 
-      {/* Appearance */}
-      <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-6">
-        <div className="flex items-center gap-3 mb-5">
-          {darkMode ? <Moon size={18} className="text-gray-400" /> : <Sun size={18} className="text-gray-400" />}
-          <h2 className="font-semibold text-gray-900 dark:text-white">Appearance</h2>
+      {/* Theme Configurations Block */}
+      <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-4 sm:p-6 w-full">
+        <div className="flex items-center gap-3 mb-4">
+          {darkMode ? <Moon size={18} className="text-gray-400 flex-shrink-0" /> : <Sun size={18} className="text-gray-400 flex-shrink-0" />}
+          <h2 className="font-semibold text-gray-900 dark:text-white text-base">Appearance</h2>
         </div>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4">
           <div>
-            <div className="text-sm font-medium text-gray-900 dark:text-white">Dark Mode</div>
-            <div className="text-xs text-gray-400 mt-0.5">Switch between light and dark themes</div>
+            <div className="text-xs sm:text-sm font-medium text-gray-990 dark:text-white">Dark Mode</div>
+            <div className="text-[11px] sm:text-xs text-gray-400 mt-0.5 leading-normal">Switch between light and dark themes</div>
           </div>
           <button onClick={toggleDarkMode}
-            className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${darkMode ? 'bg-emerald-500' : 'bg-gray-200 dark:bg-gray-700'}`}>
+            className={`relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${darkMode ? 'bg-emerald-500' : 'bg-gray-200 dark:bg-gray-700'}`}>
             <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${darkMode ? 'translate-x-5' : ''}`} />
           </button>
         </div>
       </div>
 
-      {/* Notifications */}
-      <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-6">
-        <div className="flex items-center gap-3 mb-5">
-          <Bell size={18} className="text-gray-400" />
-          <h2 className="font-semibold text-gray-900 dark:text-white">Notifications</h2>
+      {/* Notifications Switch Grid Block */}
+      <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-4 sm:p-6 w-full">
+        <div className="flex items-center gap-3 mb-4">
+          <Bell size={18} className="text-gray-400 flex-shrink-0" />
+          <h2 className="font-semibold text-gray-900 dark:text-white text-base">Notifications</h2>
         </div>
-        <div className="space-y-4">
+        <div className="space-y-4 divide-y divide-gray-50 dark:divide-gray-800/40">
           {([
             { key: 'mealReminders' as const, label: 'Meal Reminders', desc: 'Get reminded to log your meals' },
             { key: 'groceryAlerts' as const, label: 'Grocery Alerts', desc: 'Alerts when your grocery list is ready' },
             { key: 'weeklyReport' as const, label: 'Weekly Report', desc: 'Weekly nutrition summary email' },
-          ]).map(({ key, label, desc }) => (
-            <div key={key} className="flex items-center justify-between py-2">
+          ]).map(({ key, label, desc }, i) => (
+            <div key={key} className={`flex items-center justify-between gap-4 ${i > 0 ? 'pt-3' : ''}`}>
               <div>
-                <div className="text-sm font-medium text-gray-900 dark:text-white">{label}</div>
-                <div className="text-xs text-gray-400 mt-0.5">{desc}</div>
+                <div className="text-xs sm:text-sm font-medium text-gray-900 dark:text-white">{label}</div>
+                <div className="text-[11px] sm:text-xs text-gray-400 mt-0.5 leading-normal">{desc}</div>
               </div>
               <button onClick={() => setNotifications(n => ({ ...n, [key]: !n[key] }))}
-                className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${notifications[key] ? 'bg-emerald-500' : 'bg-gray-200 dark:bg-gray-700'}`}>
+                className={`relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${notifications[key] ? 'bg-emerald-500' : 'bg-gray-200 dark:bg-gray-700'}`}>
                 <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${notifications[key] ? 'translate-x-5' : ''}`} />
               </button>
             </div>
@@ -451,27 +434,26 @@ export default function Settings() {
         </div>
       </div>
 
-      {/* Privacy & Security */}
-      <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-6">
+      {/* Privacy & Security Controls Block */}
+      <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-4 sm:p-6 w-full">
         <div className="flex items-center gap-3 mb-5">
-          <Shield size={18} className="text-gray-400" />
-          <h2 className="font-semibold text-gray-900 dark:text-white">Privacy & Security</h2>
+          <Shield size={18} className="text-gray-400 flex-shrink-0" />
+          <h2 className="font-semibold text-gray-900 dark:text-white text-base">Privacy & Security</h2>
         </div>
         <div className="space-y-3">
-
-          {/* ── Change Password ── */}
-          <div className="rounded-xl border border-gray-100 dark:border-gray-800 overflow-hidden">
+          {/* Password Reset Section */}
+          <div className="rounded-xl border border-gray-100 dark:border-gray-800 overflow-hidden w-full">
             <button
               onClick={() => { setShowPwForm(v => !v); setPwMsg(null); setNewPw(''); setConfirmPw(''); }}
               disabled={isDemoMode}
-              className="w-full text-left px-4 py-3 hover:bg-stone-50 dark:hover:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors disabled:opacity-50 flex items-center justify-between"
+              className="w-full text-left px-4 py-3 hover:bg-stone-50 dark:hover:bg-gray-800 text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors disabled:opacity-50 flex items-center justify-between gap-2"
             >
               <span>Change Password</span>
-              <span className="text-xs text-gray-400">{showPwForm ? 'Cancel ↑' : 'Open ↓'}</span>
+              <span className="text-xs text-gray-400 flex-shrink-0">{showPwForm ? 'Cancel ↑' : 'Open ↓'}</span>
             </button>
 
             {showPwForm && !isDemoMode && (
-              <div className="px-4 pb-4 pt-2 border-t border-gray-50 dark:border-gray-800 space-y-3 bg-stone-50/50 dark:bg-gray-800/30">
+              <div className="px-4 pb-4 pt-2 border-t border-gray-50 dark:border-gray-800 space-y-3 bg-stone-50/50 dark:bg-gray-800/30 w-full">
                 <div className="relative">
                   <label className="block text-xs font-medium text-gray-400 mb-1">New Password</label>
                   <input
@@ -479,10 +461,10 @@ export default function Settings() {
                     value={newPw}
                     onChange={e => setNewPw(e.target.value)}
                     placeholder="Min. 8 characters"
-                    className="w-full px-4 py-2.5 pr-10 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-4 py-2.5 pr-10 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                   <button type="button" onClick={() => setShowPw(v => !v)}
-                    className="absolute right-3 top-7 text-gray-400 hover:text-gray-600">
+                    className="absolute right-3 top-8 text-gray-400 hover:text-gray-600">
                     {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
                   </button>
                 </div>
@@ -493,48 +475,52 @@ export default function Settings() {
                     value={confirmPw}
                     onChange={e => setConfirmPw(e.target.value)}
                     placeholder="Repeat new password"
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
 
                 {pwMsg && (
-                  <div className={`p-3 rounded-lg text-xs font-medium ${pwMsg.type === 'success' ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600' : 'bg-red-50 dark:bg-red-900/20 text-red-600'}`}>
+                  <div className={`p-3 rounded-lg text-xs font-medium break-words ${pwMsg.type === 'success' ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600' : 'bg-red-50 dark:bg-red-900/20 text-red-600'}`}>
                     {pwMsg.text}
                   </div>
                 )}
 
-                <button onClick={handleChangePassword} disabled={pwSaving || !newPw || !confirmPw}
-                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-colors">
+                <button 
+                  onClick={handleChangePassword} 
+                  disabled={pwSaving || !newPw || !confirmPw}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs sm:text-sm font-semibold rounded-xl transition-colors w-full sm:w-auto"
+                >
                   {pwSaving ? <><Loader2 size={13} className="animate-spin" /> Updating…</> : <><Check size={13} /> Update Password</>}
                 </button>
               </div>
             )}
           </div>
 
-          {/* ── Export My Data ── */}
           <button
             onClick={handleExportData}
             disabled={isDemoMode || isExporting}
-            className="w-full text-left px-4 py-3 rounded-xl border border-gray-100 dark:border-gray-800 hover:bg-stone-50 dark:hover:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors disabled:opacity-50 flex items-center gap-2"
+            className="w-full text-left px-4 py-3 rounded-xl border border-gray-100 dark:border-gray-800 hover:bg-stone-50 dark:hover:bg-gray-800 text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors disabled:opacity-50 flex items-center gap-2"
           >
             {isExporting
               ? <><Loader2 size={15} className="animate-spin text-emerald-500" /> Preparing export…</>
-              : <><Download size={15} className="text-gray-400" /> Export My Data</>}
+              : <><Download size={15} className="text-gray-400 flex-shrink-0" /> Export My Data</>}
           </button>
 
-          {/* ── Sign Out ── */}
           {!isDemoMode && (
-            <button onClick={handleSignOut}
-              className="w-full text-left px-4 py-3 rounded-xl border border-amber-100 dark:border-amber-900/30 hover:bg-amber-50 dark:hover:bg-amber-900/10 text-sm font-medium text-amber-600 dark:text-amber-400 transition-colors flex items-center gap-2">
-              <LogOut size={15} /> Sign Out
+            <button 
+              onClick={handleSignOut}
+              className="w-full text-left px-4 py-3 rounded-xl border border-amber-100 dark:border-amber-900/30 hover:bg-amber-50 dark:hover:bg-amber-900/10 text-xs sm:text-sm font-medium text-amber-600 dark:text-amber-400 transition-colors flex items-center gap-2"
+            >
+              <LogOut size={15} className="flex-shrink-0" /> Sign Out
             </button>
           )}
 
-          {/* ── Delete Account ── */}
           {!isDemoMode && (
-            <button onClick={() => { setShowDeleteModal(true); setDeleteInput(''); setDeleteError(''); }}
-              className="w-full text-left px-4 py-3 rounded-xl border border-red-100 dark:border-red-900/30 hover:bg-red-50 dark:hover:bg-red-900/10 text-sm font-medium text-red-500 transition-colors flex items-center gap-2">
-              <Trash2 size={15} /> Delete Account
+            <button 
+              onClick={() => { setShowDeleteModal(true); setDeleteInput(''); setDeleteError(''); }}
+              className="w-full text-left px-4 py-3 rounded-xl border border-red-100 dark:border-red-900/30 hover:bg-red-50 dark:hover:bg-red-900/10 text-xs sm:text-sm font-medium text-red-500 transition-colors flex items-center gap-2"
+            >
+              <Trash2 size={15} className="flex-shrink-0" /> Delete Account
             </button>
           )}
         </div>
@@ -542,27 +528,27 @@ export default function Settings() {
 
       {/* ── Delete Account Modal ───────────────────────────────────────────── */}
       {showDeleteModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-8 w-full max-w-sm shadow-2xl">
-            <div className="flex items-center justify-between mb-5">
-              <div className="flex items-center gap-2 text-red-500">
-                <AlertTriangle size={20} />
-                <h2 className="text-lg font-bold">Delete Account</h2>
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-5 sm:p-8 w-full max-w-sm shadow-2xl overflow-y-auto max-h-[calc(100vh-2rem)]">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2 text-red-500 min-w-0">
+                <AlertTriangle size={20} className="flex-shrink-0" />
+                <h2 className="text-base sm:text-lg font-bold truncate">Delete Account</h2>
               </div>
-              <button onClick={() => setShowDeleteModal(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setShowDeleteModal(false)} className="text-gray-400 hover:text-gray-600 flex-shrink-0">
                 <X size={18} />
               </button>
             </div>
 
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2 leading-relaxed">
+            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-2 leading-relaxed">
               This will permanently delete <strong>all your data</strong> — family members, meals, nutrition logs, grocery lists, and AI insights.
             </p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
+            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mb-5 leading-normal">
               This action <strong className="text-red-500">cannot be undone</strong>.
             </p>
 
-            <div className="mb-4">
-              <label className="block text-xs font-semibold text-gray-500 mb-1.5">
+            <div className="mb-5">
+              <label className="block text-[11px] sm:text-xs font-semibold text-gray-500 mb-1.5">
                 Type <span className="text-red-500 font-mono">DELETE</span> to confirm
               </label>
               <input
@@ -570,90 +556,94 @@ export default function Settings() {
                 value={deleteInput}
                 onChange={e => setDeleteInput(e.target.value)}
                 placeholder="DELETE"
-                className="w-full px-4 py-2.5 rounded-xl border border-red-200 dark:border-red-800 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
+                className="w-full px-4 py-2.5 rounded-xl border border-red-200 dark:border-red-800 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
               />
             </div>
 
             {deleteError && (
-              <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 text-xs rounded-lg">{deleteError}</div>
+              <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 text-xs rounded-lg break-words">{deleteError}</div>
             )}
 
             <div className="flex gap-3">
-              <button onClick={() => setShowDeleteModal(false)}
-                className="flex-1 px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+              <button 
+                onClick={() => setShowDeleteModal(false)}
+                className="flex-1 px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-xs sm:text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              >
                 Cancel
               </button>
               <button
                 onClick={handleDeleteAccount}
                 disabled={deleteInput !== 'DELETE' || isDeleting}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-500 hover:bg-red-600 disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors"
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-500 hover:bg-red-600 disabled:opacity-40 text-white text-xs sm:text-sm font-semibold rounded-xl transition-colors"
               >
-                {isDeleting ? <><Loader2 size={13} className="animate-spin" /> Deleting…</> : 'Delete Everything'}
+                {isDeleting ? <><Loader2 size={12} className="animate-spin" /> Deleting…</> : 'Confirm'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Pricing Modal ─────────────────────────────────────────────────────── */}
+      {/* ── Pricing Modal Overlay Block ───────────────────────────────────────── */}
       {showPricingModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-8 w-full max-w-2xl shadow-2xl relative">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4 backdrop-blur-sm">
+          {/* w-[calc(100%-2rem)] sets standard safety bounds on mobile rows */}
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-5 sm:p-8 w-full max-w-2xl shadow-2xl relative overflow-y-auto max-h-[calc(100vh-2rem)] [scrollbar-width:thin]">
             <button onClick={() => setShowPricingModal(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 z-10">
               <X size={20} />
             </button>
 
             <div className="text-center mb-6">
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 text-xs font-bold rounded-full mb-4">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 text-xs font-bold rounded-full mb-3">
                 <Zap size={12} /> Upgrade NutriNest
               </div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Choose Your Plan</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Unlock more members and AI features for your family.</p>
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Choose Your Plan</h2>
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Unlock more members and AI features for your family.</p>
             </div>
 
             {upgradeMsg && (
-              <div className={`mb-5 p-3 rounded-xl text-sm font-semibold text-center ${
+              <div className={`mb-5 p-3 rounded-xl text-xs sm:text-sm font-semibold text-center break-words ${
                 upgradeMsg.startsWith('✓')
                   ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300'
                   : 'bg-red-50 dark:bg-red-900/20 text-red-600'
               }`}>{upgradeMsg}</div>
             )}
 
-            <div className="grid sm:grid-cols-2 gap-5">
+            {/* Changed from flat columns to single stacked column layout on mobile viewports */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 items-stretch">
               {/* Family Plan */}
-              <div className={`rounded-2xl border-2 p-6 flex flex-col transition-all ${
+              <div className={`rounded-2xl border-2 p-5 sm:p-6 flex flex-col transition-all w-full ${
                 subscriptionTier === 'pro'
                   ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20'
                   : 'border-emerald-200 dark:border-emerald-800 hover:border-emerald-400'
               }`}>
-                <div className="mb-1 flex items-center justify-between">
-                  <h3 className="text-lg font-bold text-gray-900 dark:text-white">Family</h3>
-                  <div className="flex gap-1.5">
-                    <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-bold rounded-full">Most Popular</span>
-                    {subscriptionTier === 'pro' && <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full">Active</span>}
+                <div className="mb-1 flex items-center justify-between gap-2 flex-wrap">
+                  <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">Family</h3>
+                  <div className="flex gap-1 flex-shrink-0">
+                    <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded-full uppercase tracking-wide">Popular</span>
+                    {subscriptionTier === 'pro' && <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-full uppercase tracking-wide">Active</span>}
                   </div>
                 </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Everything a growing family needs.</p>
-                <div className="text-3xl font-black text-emerald-600 dark:text-emerald-400 mb-5">
-                  $12<span className="text-sm font-normal text-gray-500">/month</span>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-4 leading-normal">Everything a growing family needs.</p>
+                <div className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 mb-5">
+                  $12<span className="text-xs font-normal text-gray-500">/month</span>
                 </div>
-                <ul className="space-y-2.5 flex-1 mb-6 text-sm text-gray-700 dark:text-gray-300">
+                <ul className="space-y-2.5 flex-1 mb-6 text-xs sm:text-sm text-gray-700 dark:text-gray-300">
                   {['Up to 6 family members', 'AI meal planner', 'Smart grocery lists', 'Full nutrition dashboard', 'AI recommendations', 'Priority support'].map(f => (
                     <li key={f} className="flex items-center gap-2">
-                      <Check size={13} className="text-emerald-500 flex-shrink-0" />{f}
+                      <Check size={13} className="text-emerald-500 flex-shrink-0" /><span className="truncate">{f}</span>
                     </li>
                   ))}
                 </ul>
                 {subscriptionTier === 'pro' ? (
-                  <div className="w-full py-3 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-semibold rounded-xl text-sm text-center flex items-center justify-center gap-2">
+                  <div className="w-full py-2.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-semibold rounded-xl text-xs sm:text-sm text-center flex items-center justify-center gap-2 flex-shrink-0">
                     <Check size={14} /> Current Plan
                   </div>
                 ) : (
                   <button
                     onClick={() => handleUpgrade('pro')}
                     disabled={isUpgrading !== null || subscriptionTier === 'premium'}
-                    className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
+                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors flex items-center justify-center gap-2 flex-shrink-0"
                   >
                     {isUpgrading === 'pro' ? <><Loader2 size={14} className="animate-spin" /> Upgrading…</> : 'Subscribe — $12/mo'}
                   </button>
@@ -661,35 +651,35 @@ export default function Settings() {
               </div>
 
               {/* Premium Plan */}
-              <div className={`rounded-2xl border-2 p-6 flex flex-col transition-all ${
+              <div className={`rounded-2xl border-2 p-5 sm:p-6 flex flex-col transition-all w-full ${
                 subscriptionTier === 'premium'
                   ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20'
                   : 'border-violet-200 dark:border-violet-800 hover:border-violet-400'
               }`}>
-                <div className="mb-1 flex items-center justify-between">
-                  <h3 className="text-lg font-bold text-gray-900 dark:text-white">Premium</h3>
-                  {subscriptionTier === 'premium' && <span className="px-2 py-0.5 bg-violet-100 text-violet-700 text-xs font-bold rounded-full">Active</span>}
+                <div className="mb-1 flex items-center justify-between gap-2 flex-wrap">
+                  <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">Premium</h3>
+                  {subscriptionTier === 'premium' && <span className="px-2 py-0.5 bg-violet-100 text-violet-700 text-[10px] font-bold rounded-full uppercase tracking-wide flex-shrink-0">Active</span>}
                 </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">For health-focused families wanting the best.</p>
-                <div className="text-3xl font-black text-violet-600 dark:text-violet-400 mb-5">
-                  $24<span className="text-sm font-normal text-gray-500">/month</span>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-4 leading-normal">For health-focused families wanting the best.</p>
+                <div className="text-2xl sm:text-3xl font-black text-violet-600 dark:text-violet-400 mb-5">
+                  $24<span className="text-xs font-normal text-gray-500">/month</span>
                 </div>
-                <ul className="space-y-2.5 flex-1 mb-6 text-sm text-gray-700 dark:text-gray-300">
+                <ul className="space-y-2.5 flex-1 mb-6 text-xs sm:text-sm text-gray-700 dark:text-gray-300">
                   {['Unlimited family members', 'Everything in Family', 'Advanced analytics', 'Nutritionist consultations', 'Custom diet programs', 'Dedicated support'].map(f => (
                     <li key={f} className="flex items-center gap-2">
-                      <Check size={13} className="text-violet-500 flex-shrink-0" />{f}
+                      <Check size={13} className="text-violet-500 flex-shrink-0" /><span className="truncate">{f}</span>
                     </li>
                   ))}
                 </ul>
                 {subscriptionTier === 'premium' ? (
-                  <div className="w-full py-3 bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 font-semibold rounded-xl text-sm text-center flex items-center justify-center gap-2">
+                  <div className="w-full py-2.5 bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 font-semibold rounded-xl text-xs sm:text-sm text-center flex items-center justify-center gap-2 flex-shrink-0">
                     <Check size={14} /> Current Plan
                   </div>
                 ) : (
                   <button
                     onClick={() => handleUpgrade('premium')}
                     disabled={isUpgrading !== null}
-                    className="w-full py-3 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
+                    className="w-full py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors flex items-center justify-center gap-2 flex-shrink-0"
                   >
                     {isUpgrading === 'premium' ? <><Loader2 size={14} className="animate-spin" /> Upgrading…</> : 'Subscribe — $24/mo'}
                   </button>
@@ -697,107 +687,97 @@ export default function Settings() {
               </div>
             </div>
 
-            <p className="text-center text-xs text-gray-400 mt-5">
+            <p className="text-center text-[11px] text-gray-400 mt-5">
               Cancel anytime · Switch plans at any time
             </p>
           </div>
         </div>
       )}
+
       {/* ── Cancel Plan Modal ────────────────────────────────────────────── */}
       {showCancelModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-8 w-full max-w-md shadow-2xl">
-            <div className="flex items-center gap-3 mb-5">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-5 sm:p-8 w-full max-w-md shadow-2xl overflow-y-auto max-h-[calc(100vh-2rem)]">
+            <div className="flex items-start gap-3 mb-5">
               <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0">
                 <AlertTriangle size={18} className="text-red-600" />
               </div>
-              <div>
-                <h3 className="font-bold text-gray-900 dark:text-white text-lg">
+              <div className="min-w-0">
+                <h3 className="font-bold text-gray-900 dark:text-white text-base truncate">
                   {subscriptionTier === 'premium' ? 'Cancel Premium Plan' : 'Cancel Family Plan'}
                 </h3>
-                <p className="text-sm text-gray-500">
-                  {subscriptionTier === 'premium'
-                    ? 'Downgrade to Family ($12/mo)'
-                    : 'Downgrade to Free'}
+                <p className="text-xs text-gray-500 truncate">
+                  {subscriptionTier === 'premium' ? 'Downgrade to Family ($12/mo)' : 'Downgrade to Free'}
                 </p>
               </div>
             </div>
 
             {cancelMsg ? (
-              <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 rounded-xl text-sm font-semibold text-center">{cancelMsg}</div>
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 rounded-xl text-sm font-semibold text-center break-words">{cancelMsg}</div>
             ) : (
               <>
-                {/* ── PRO cancel: warns members will be removed ── */}
                 {subscriptionTier === 'pro' && cancelMemberCount > 1 && (
                   <div className="mb-5 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
-                    <p className="text-sm text-amber-800 dark:text-amber-200 font-medium mb-1">
+                    <p className="text-xs sm:text-sm text-amber-800 dark:text-amber-200 font-medium mb-1">
                       You have {cancelMemberCount} family members.
                     </p>
-                    <p className="text-sm text-amber-700 dark:text-amber-300">
-                      The Free plan allows only <strong>1 member</strong>. Cancelling will
-                      permanently remove <strong>{cancelMemberCount - 1} member{cancelMemberCount - 1 > 1 ? 's' : ''}</strong> from your family.
+                    <p className="text-xs sm:text-sm text-amber-700 dark:text-amber-300 leading-normal">
+                      The Free plan allows only <strong>1 member</strong>. Cancelling will permanently remove <strong>{cancelMemberCount - 1} member{cancelMemberCount - 1 > 1 ? 's' : ''}</strong> from your family dashboard.
                     </p>
                   </div>
                 )}
 
-                {/* ── PRO cancel: only 1 member, safe ── */}
                 {subscriptionTier === 'pro' && cancelMemberCount <= 1 && (
-                  <p className="mb-5 text-sm text-gray-600 dark:text-gray-400">
-                    You'll be downgraded to the <strong>Free plan</strong>. Your single family member profile will be kept. You can upgrade again at any time.
+                  <p className="mb-5 text-xs sm:text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                    You'll be downgraded to the <strong>Free plan</strong>. Your single family member profile will be kept intact.
                   </p>
                 )}
 
-                {/* ── PREMIUM cancel: too many members ── */}
                 {subscriptionTier === 'premium' && cancelMemberCount > 6 && (
                   <div className="mb-5 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
-                    <p className="text-sm text-amber-800 dark:text-amber-200 font-medium mb-1">
+                    <p className="text-xs sm:text-sm text-amber-800 dark:text-amber-200 font-medium mb-1">
                       You have {cancelMemberCount} members — Family plan allows up to 6.
                     </p>
-                    <p className="text-sm text-amber-700 dark:text-amber-300">
-                      You need to remove <strong>{cancelMemberCount - 6} member{cancelMemberCount - 6 > 1 ? 's' : ''}</strong> first,
-                      or let us remove the most recently added ones for you.
+                    <p className="text-xs sm:text-sm text-amber-700 dark:text-amber-300 leading-normal">
+                      You need to remove <strong>{cancelMemberCount - 6} member{cancelMemberCount - 6 > 1 ? 's' : ''}</strong> first, or let us delete the most recently added ones automatically.
                     </p>
                   </div>
                 )}
 
-                {/* ── PREMIUM cancel: under 6 members, safe ── */}
                 {subscriptionTier === 'premium' && cancelMemberCount <= 6 && (
-                  <p className="mb-5 text-sm text-gray-600 dark:text-gray-400">
-                    You'll be downgraded to the <strong>Family plan ($12/mo)</strong>. All {cancelMemberCount} of your family members will be kept.
+                  <p className="mb-5 text-xs sm:text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                    You'll be downgraded to the <strong>Family plan ($12/mo)</strong>. All {cancelMemberCount} of your family members will be preserved safely.
                   </p>
                 )}
 
                 {cancelError && (
-                  <p className="mb-4 text-sm text-red-600 bg-red-50 dark:bg-red-900/20 rounded-xl p-3">{cancelError}</p>
+                  <p className="mb-4 text-xs sm:text-sm text-red-600 bg-red-50 dark:bg-red-900/20 rounded-xl p-3 break-words">{cancelError}</p>
                 )}
 
-                {/* ── Action buttons ── */}
                 <div className="flex flex-col gap-2">
-                  {/* Premium with too many members: offer to go manage OR force-remove */}
                   {subscriptionTier === 'premium' && cancelMemberCount > 6 && (
                     <>
                       <button
                         onClick={() => { setShowCancelModal(false); navigate('/dashboard/family'); }}
-                        className="w-full py-3 border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 font-semibold rounded-xl text-sm hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
+                        className="w-full py-2.5 border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 font-semibold rounded-xl text-xs sm:text-sm hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
                       >
-                        Go to Family Members to remove manually
+                        Manage Family Members manually
                       </button>
                       <button
                         onClick={() => handleCancelPlan(true)}
                         disabled={isCancelling}
-                        className="w-full py-3 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2 transition-colors"
+                        className="w-full py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-semibold rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2 transition-colors"
                       >
-                        {isCancelling ? <><Loader2 size={14} className="animate-spin" /> Processing…</> : `Remove ${cancelMemberCount - 6} member${cancelMemberCount - 6 > 1 ? 's' : ''} & downgrade`}
+                        {isCancelling ? <><Loader2 size={12} className="animate-spin" /> Processing…</> : `Remove excess & downgrade`}
                       </button>
                     </>
                   )}
 
-                  {/* Pro or Premium with acceptable member count */}
                   {!(subscriptionTier === 'premium' && cancelMemberCount > 6) && (
                     <button
                       onClick={() => handleCancelPlan(false)}
                       disabled={isCancelling}
-                      className="w-full py-3 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2 transition-colors"
+                      className="w-full py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-semibold rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2 transition-colors"
                     >
                       {isCancelling
                         ? <><Loader2 size={14} className="animate-spin" /> Processing…</>
@@ -810,7 +790,7 @@ export default function Settings() {
                   <button
                     onClick={() => setShowCancelModal(false)}
                     disabled={isCancelling}
-                    className="w-full py-3 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-medium rounded-xl text-sm hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                    className="w-full py-2.5 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-medium rounded-xl text-xs sm:text-sm hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                   >
                     Keep my plan
                   </button>
